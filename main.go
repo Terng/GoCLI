@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"log"
 	"os"
@@ -41,6 +42,25 @@ func main() {
 						Completed: false,
 					}
 					return createTask(task)
+				},
+			},
+			{
+				Name:    "all",
+				Aliases: []string{"l"},
+				Usage:   "list all tasks",
+				Action: func(c *cli.Context) error {
+					tasks, err := getAll()
+					if err != nil {
+						if err == mongo.ErrNoDocuments {
+							fmt.Print("Nothing to see here.\nRun `add 'task'` to add a task")
+							return nil
+						}
+
+						return err
+					}
+
+					printTasks(tasks)
+					return nil
 				},
 			},
 		},
@@ -107,12 +127,13 @@ func filterTasks(filter interface{}) ([]*Task, error) {
 	return tasks, nil
 }
 
-func printTask(tasks []*Task) {
+func printTasks(tasks []*Task) {
 	for i, v := range tasks {
 		if v.Completed {
 			color.Green.Printf("%d: %s\n", i+1, v.Text)
 		} else {
-			color.Yellow.Printf("%d: %s\n", i+1, v.Text)
+			color.Green.Printf("%d: %s\n", i+1, v.Text)
+
 		}
 	}
 }
