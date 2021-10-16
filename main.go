@@ -24,6 +24,18 @@ func main() {
 	app := &cli.App{
 		Name:  "tasker",
 		Usage: "A simple CLI Program to manage your tasks",
+		Action: func(c *cli.Context) error {
+			tasks, err := getPeding()
+			if err != nil {
+				if err == mongo.ErrNoDocuments {
+					fmt.Print("Nothing to see here.\nRun `add 'task'` to add a task")
+					return nil
+				}
+				return err
+			}
+			printTasks(tasks)
+			return nil
+		},
 		Commands: []*cli.Command{
 			{
 				Name:    "add",
@@ -60,6 +72,56 @@ func main() {
 					}
 
 					printTasks(tasks)
+					return nil
+				},
+			},
+			{
+				Name:    "done",
+				Aliases: []string{"d"},
+				Usage:   "compte a task on the list",
+				Action: func(c *cli.Context) error {
+					text := c.Args().First()
+					return complteTask(text)
+				},
+			},
+			{
+				Name:    "undone",
+				Aliases: []string{"d"},
+				Usage:   "compte a task on the list",
+				Action: func(c *cli.Context) error {
+					text := c.Args().First()
+					return unCompletedTask(text)
+				},
+			},
+			{
+				Name:    "Finished",
+				Aliases: []string{"l"},
+				Usage:   "list all tasks",
+				Action: func(c *cli.Context) error {
+					tasks, err := getFinished()
+					if err != nil {
+						if err == mongo.ErrNoDocuments {
+							fmt.Print("Nothing to see here.\nRun `add 'task'` to add a task")
+							return nil
+						}
+
+						return err
+					}
+
+					printTasks(tasks)
+					return nil
+				},
+			},
+			{
+				Name:    "rm",
+				Aliases: []string{"l"},
+				Usage:   "Delete a task",
+				Action: func(c *cli.Context) error {
+					text := c.Args().First()
+					err := deleteTask(text)
+					if err != nil {
+						return err
+					}
 					return nil
 				},
 			},
@@ -136,4 +198,50 @@ func printTasks(tasks []*Task) {
 
 		}
 	}
+}
+
+func complteTask(text string) error {
+	filter := bson.D{primitive.E{Key: "text", Value: text}}
+
+	update := bson.D{primitive.E{Key: "$set", Value: bson.D{
+		primitive.E{Key: "completed", Value: true},
+	}}}
+	t := &Task{}
+	return collection.FindOneAndUpdate(ctx, filter, update).Decode(t)
+}
+
+func unCompletedTask(text string) error {
+	filter := bson.D{primitive.E{Key: "text", Value: text}}
+
+	update := bson.D{primitive.E{Key: "$set", Value: bson.D{
+		primitive.E{Key: "completed", Value: false},
+	}}}
+	t := &Task{}
+	return collection.FindOneAndUpdate(ctx, filter, update).Decode(t)
+}
+
+func getPeding() ([]*Task, error) {
+	filter := bson.D{
+		primitive.E{Key: "completed", Value: false},
+	}
+	return filterTasks(filter)
+}
+
+func getFinished() ([]*Task, error) {
+	filter := bson.D{
+		primitive.E{Key: "completed", Value: true},
+	}
+	return filterTasks(filter)
+}
+
+func deleteTask(text string) error {
+	filter := bson.D{primitive.E{Key: "text", Value: text}}
+	res, err := collection.DeleteOne(ctx, filter)
+	if err != nil {
+		return err
+	}
+	if res.DeletedCount == 0 {
+		return errors.New("No tasks were deleted")
+	}
+	return nil
 }
